@@ -21,10 +21,14 @@
   %22orientation%22:%22portrait%22
 }">
 <title>NETROVA — Réseau de confiance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ════════════════════════════════════════════════════════════
 //  🔧 CONFIGURATION FIREBASE — remplacez par vos propres clés
@@ -42,23 +46,45 @@ const firebaseConfig = {
 
 const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "VOTRE_API_KEY";
 
-let fireApp, fireDB;
+let fireApp, fireDB, fireAuth;
 if(FIREBASE_CONFIGURED){
   fireApp = initializeApp(firebaseConfig);
   fireDB  = getFirestore(fireApp);
+  fireAuth = getAuth(fireApp);
 }
 
 // Expose globalement pour le reste de l'app
 window._firebase = {
   configured: FIREBASE_CONFIGURED,
   db: fireDB,
-  setDoc, doc, getDoc, onSnapshot, collection
+  setDoc, doc, getDoc, onSnapshot, collection,
+  auth: fireAuth,
+  authReady: false
 };
+
+// Authentification anonyme : nécessaire pour que les règles Firestore
+// puissent exiger "request.auth != null" au lieu de laisser l'accès
+// ouvert à tout Internet. On attend que ce soit fait avant de signaler
+// que Firebase est prêt, pour que le reste de l'app ne tente jamais
+// une lecture/écriture sans être identifié.
+if(FIREBASE_CONFIGURED){
+  signInAnonymously(fireAuth).then(()=>{
+    window._firebase.authReady = true;
+    window.dispatchEvent(new Event("firebase-ready"));
+  }).catch((err)=>{
+    console.error("Firebase auth error:", err);
+    window._firebase.authReady = false;
+    window._firebase.authError = err;
+    window.dispatchEvent(new Event("firebase-ready"));
+  });
+} else {
+  window.dispatchEvent(new Event("firebase-ready"));
+}
 </script>
 <link rel="icon" type="image/png" href="data:image/png;base64,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"><rect width='100' height='100' rx='50' fill='white'/><path d='M50 8 A42 42 0 0 0 8 50' fill='none' stroke='%231a3fa5' stroke-width='4'/><path d='M8 50 A42 42 0 0 0 92 50' fill='none' stroke='%231DB954' stroke-width='4'/><path d='M92 50 A42 42 0 0 0 50 8' fill='none' stroke='%231a3fa5' stroke-width='4'/><circle cx='50' cy='8' r='5' fill='%231a3fa5'/><circle cx='8' cy='50' r='5' fill='%231a3fa5'/><circle cx='92' cy='50' r='5' fill='%231DB954'/><circle cx='50' cy='92' r='5' fill='%231DB954'/><rect x='26' y='28' width='8' height='44' rx='1.5' fill='%231a3fa5'/><rect x='52' y='28' width='8' height='44' rx='1.5' fill='%231a3fa5'/><polygon points='26,28 34,28 60,72 52,72' fill='%231a3fa5'/><rect x='36' y='28' width='8' height='44' rx='1.5' fill='%231DB954'/><rect x='62' y='28' width='8' height='44' rx='1.5' fill='%231DB954'/><polygon points='36,28 44,28 70,72 62,72' fill='%231DB954'/></svg>"><rect width='100' height='100' rx='16' fill='%23185FA5'/><circle cx='50' cy='50' r='42' fill='none' stroke='%231DB954' stroke-width='5'/><circle cx='50' cy='8' r='5' fill='%231DB954'/><circle cx='92' cy='50' r='5' fill='%231DB954'/><circle cx='50' cy='92' r='5' fill='%231DB954'/><circle cx='8' cy='50' r='5' fill='%231DB954'/><rect x='24' y='22' width='12' height='56' rx='2' fill='white'/><rect x='64' y='22' width='12' height='56' rx='2' fill='white'/><polygon points='24,22 36,22 76,78 64,78' fill='white'/></svg>"><rect width='100' height='100' rx='18' fill='%23185FA5'/><circle cx='50' cy='50' r='44' fill='none' stroke='%232ECC40' stroke-width='4'/><circle cx='50' cy='6' r='6' fill='%232ECC40'/><circle cx='94' cy='50' r='6' fill='%232ECC40'/><circle cx='50' cy='94' r='6' fill='%232ECC40'/><circle cx='6' cy='50' r='6' fill='%232ECC40'/><text x='50' y='66' text-anchor='middle' font-family='Arial Black' font-weight='900' font-size='52' fill='white'>N</text></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F1EFE8;color:#1a1a1a;min-height:100vh}
+body{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:#F1EFE8;color:#1a1a1a;min-height:100vh}
 .app{max-width:100%;width:100%;min-height:100vh;display:flex;flex-direction:column;background:#fff}
 .topbar{background:#185FA5;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
 .logo{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff}
@@ -137,6 +163,8 @@ body.dark .ss-item:hover,body.dark .ss-item.active{background:#1f2f44}
 .pack-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
 .pack-tag{font-size:10px;padding:2px 7px;background:#f1f3f5;border-radius:10px;color:#555}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:none;align-items:flex-end;justify-content:center}
+#toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-80px);z-index:999;background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .35s;opacity:0;pointer-events:none;max-width:90vw}
+#toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 .overlay.open{display:flex}
 .modal{background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;padding:20px 16px 36px}
 .modal-handle{width:40px;height:4px;border-radius:2px;background:#d1d5db;margin:0 auto 18px}
@@ -283,11 +311,11 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     <div class="login-box-title">Bienvenue 👋</div>
     <div class="login-box-sub">Connectez-vous à votre espace NETROVA</div>
     <div class="login-field">
-      <label>Identifiant</label>
+      <label data-i18n="login_id">Identifiant</label>
       <input type="text" id="login-id" placeholder="ex : fondateur" autocomplete="username">
     </div>
     <div class="login-field">
-      <label>Mot de passe</label>
+      <label data-i18n="login_pwd">Mot de passe</label>
       <input type="password" id="login-pwd" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="login-err" id="login-err"></div>
@@ -303,14 +331,16 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     <div class="logo" style="background:transparent;padding:0;width:36px;height:36px;flex-shrink:0"><img src="data:image/png;base64,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" alt="NETROVA" style="width:36px;height:36px;object-fit:contain;display:block"></div>
     <div>
       <div class="topbar-title" style="display:flex;align-items:center;gap:6px">NETROVA <span style="width:6px;height:6px;border-radius:50%;background:#2ECC40;display:inline-block"></span></div>
-      <div class="topbar-sub" id="topbar-sub">Réseau de confiance</div>
+      <div class="topbar-sub" id="topbar-sub"></div>
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
       <div class="save-dot" id="save-dot" title="Sauvegarde auto"></div>
+<div id="toast"></div>
       <div class="lang-toggle">
         <button class="lang-btn active" id="lang-fr" onclick="setLang('fr')">FR</button>
         <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
       </div>
+      <button onclick="openModal('modal-pwd')" id="btn-pwd" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:16px;padding:4px 8px;border-radius:20px;cursor:pointer;display:none" title="Changer le mot de passe">🔐</button>
       <button onclick="doLogout()" style="background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:11px;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:inherit" id="btn-logout">Déco.</button>
     </div>
   </div>
@@ -326,7 +356,7 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     </div>
     <!-- Totaux globaux commandes -->
     <div class="card" style="margin-bottom:10px">
-      <div class="card-title">💰 Totaux globaux</div>
+      <div class="card-title" data-i18n="global_totals">💰 Totaux globaux</div>
       <div class="row-line">
         <span class="rl-label">Total commandes (CA)</span>
         <span class="rl-val mv-blue" id="d-total-ca">0 FCFA</span>
@@ -347,11 +377,11 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     <div id="d-graphiques" style="margin-bottom:0"></div>
     <div id="d-urgents-wrap"></div>
     <div class="card">
-      <div class="card-title">⚠️ Retards de paiement</div>
+      <div class="card-title" data-i18n="late_payments">⚠️ Retards de paiement</div>
       <div id="d-retards"></div>
     </div>
     <div class="card">
-      <div class="card-title">🕐 Dernières commandes</div>
+      <div class="card-title" data-i18n="recent_orders">🕐 Dernières commandes</div>
       <div id="d-recents"></div>
     </div>
   </div>
@@ -370,18 +400,18 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       </select>
     </div>
     <div id="membres-list"></div>
-    <button class="btn btn-primary" id="btn-add-membre" onclick="openModal('modal-add-membre')">+ Ajouter un membre</button>
+    <button class="btn btn-primary" id="btn-add-membre" onclick="openModal('modal-add-membre')" data-i18n="add_member_btn">+ Ajouter un membre</button>
   </div>
 
   <!-- COMMANDES -->
   <div class="page" id="p-commandes">
-    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-commande" onclick="openModal('modal-add-commande')">+ Nouvelle commande</button>
+    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-commande" onclick="openModal('modal-add-commande')" data-i18n="new_order">+ Nouvelle commande</button>
     <div id="commandes-list"></div>
   </div>
 
   <!-- PAIEMENTS -->
   <div class="page" id="p-paiements">
-    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-paiement" onclick="openModal('modal-pay')">+ Enregistrer un paiement</button>
+    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-paiement" onclick="openModal('modal-pay')" data-i18n="new_payment">+ Enregistrer un paiement</button>
     <div id="paiements-list"></div>
   </div>
 
@@ -393,19 +423,19 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     </div>
     <div id="reseau-filtre-info" style="margin-bottom:8px"></div>
     <div class="card">
-      <div class="card-title" id="reseau-card-title">🌐 Organigramme complet</div>
+      <div class="card-title" id="reseau-card-title" data-i18n="network_chart">🌐 Organigramme complet</div>
       <div id="reseau-tree"></div>
     </div>
   </div>
 
   <!-- LIVRAISONS -->
   <div class="page" id="p-livraisons">
-    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-livraison" onclick="openModal('modal-add-livraison')">🚚 Nouvelle livraison</button>
+    <button class="btn btn-primary" style="margin-bottom:12px" id="btn-add-livraison" onclick="openModal('modal-add-livraison')" data-i18n="new_delivery">🚚 Nouvelle livraison</button>
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap" id="livr-filtres">
       <button class="btn btn-sm active" onclick="filtrerLivraisons('tous',this)" style="flex:none">Toutes</button>
       <button class="btn btn-sm" onclick="filtrerLivraisons('en attente',this)" style="flex:none">⏳ En attente</button>
       <button class="btn btn-sm" onclick="filtrerLivraisons('en route',this)" style="flex:none">🚚 En route</button>
-      <button class="btn btn-sm" onclick="filtrerLivraisons('livrée',this)" style="flex:none">✅ Livrées</button>
+      <button class="btn btn-sm" onclick="filtrerLivraisons('livrée',this)" style="flex:none" data-i18n="delivered">✅ Livrées</button>
     </div>
     <div id="livraisons-list"></div>
   </div>
@@ -419,45 +449,47 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">📊 Performance par filleul</div>
+      <div class="card-title" data-i18n="performance">📊 Performance par filleul</div>
       <div id="r-filleuls"></div>
     </div>
     <div class="card">
-      <div class="card-title">📅 Encaissements par mois</div>
+      <div class="card-title" data-i18n="monthly">📅 Encaissements par mois</div>
       <div id="r-mensuel"></div>
     </div>
     <div class="card">
-      <div class="card-title">📦 Packs les plus vendus</div>
+      <div class="card-title" data-i18n="top_packs">📦 Packs les plus vendus</div>
       <div id="r-packs"></div>
     </div>
     <div class="card" id="r-backup-card">
-      <div class="card-title">💾 Sauvegarde &amp; restauration</div>
-      <div style="font-size:13px;color:#666;margin-bottom:10px">Vos données sont stockées uniquement sur cet appareil. Exportez régulièrement une sauvegarde pour ne rien perdre en cas de changement de téléphone ou de nettoyage du cache.</div>
-      <button class="btn btn-primary" style="margin-bottom:8px;width:100%" onclick="exporterDonnees()">⬇️ Exporter mes données</button>
+      <div class="card-title" data-i18n="backup_title">💾 Sauvegarde &amp; restauration</div>
+      <div style="font-size:13px;color:#666;margin-bottom:10px"><span data-i18n="backup_desc">Vos données sont stockées uniquement sur cet appareil. Exportez régulièrement une sauvegarde pour ne rien perdre en cas de changement de téléphone ou de nettoyage du cache.</span></div>
+      <button class="btn btn-primary" style="margin-bottom:8px;width:100%" onclick="exporterDonnees()" data-i18n="export_data">⬇️ Exporter mes données</button>
       <button class="btn btn-sm" style="width:100%" onclick="document.getElementById('import-file').click()">⬆️ Importer une sauvegarde</button>
       <input type="file" id="import-file" accept="application/json,.json" style="display:none" onchange="importerDonnees(this)">
     </div>
     <div class="card">
-      <div class="card-title">☁️ Synchronisation cloud</div>
-      <div id="firebase-status-card">
-        <div style="font-size:13px;color:#666;margin-bottom:12px">Connectez Firebase pour synchroniser vos données sur tous vos appareils.</div>
+      <div class="card-title" data-i18n="cloud_title">☁️ Synchronisation cloud</div>
+      <div id="firebase-status-card" style="margin-bottom:12px">
+        <div id="sync-badge" style="display:flex;align-items:center;gap:8px;background:#F6F8FB;border-radius:10px;padding:10px 12px;font-size:13px">
+          <span id="sync-icon" style="font-size:18px">⏳</span>
+          <span id="sync-text" style="color:#666">Connexion au cloud en cours...</span>
+        </div>
       </div>
-      <button class="btn btn-primary" onclick="syncFirebase()" style="margin-bottom:8px">🔄 Synchroniser maintenant</button>
-      <div style="font-size:11px;color:#888;margin-top:4px">Pour configurer Firebase, remplacez les clés dans le fichier index.html (section CONFIGURATION FIREBASE)</div>
+      <button class="btn btn-primary" onclick="syncFirebaseManuel()" style="margin-bottom:8px;width:100%" data-i18n="sync_now">🔄 Synchroniser maintenant</button>
     </div>
     <div class="card">
-      <div class="card-title">💾 Sauvegarde manuelle</div>
+      <div class="card-title" data-i18n="manual_backup">💾 Sauvegarde manuelle</div>
       <div style="font-size:13px;color:#666;margin-bottom:12px">Exportez ou importez vos données en fichier JSON.</div>
-      <button class="btn btn-primary" onclick="exporterDonnees()" style="margin-bottom:8px">⬇️ Exporter les données</button>
+      <button class="btn btn-primary" onclick="exporterDonnees()" style="margin-bottom:8px" data-i18n="export_data2">⬇️ Exporter les données</button>
       <div style="position:relative;margin-top:4px">
         <button class="btn" onclick="document.getElementById('import-input').click()">⬆️ Importer une sauvegarde</button>
         <input type="file" id="import-input" accept=".json" style="display:none" onchange="importerDonnees(this)">
       </div>
     </div>
     <div class="card" id="r-reset-card">
-      <div class="card-title">⚙️ Paramètres</div>
+      <div class="card-title" data-i18n="settings_title">⚙️ Paramètres</div>
       <div style="font-size:13px;color:#666;margin-bottom:10px">Effacer toutes les données de démonstration pour commencer avec une base vierge.</div>
-      <button class="btn btn-danger" onclick="reinitialiser()">🗑 Réinitialiser l'application</button>
+      <button class="btn btn-danger" onclick="reinitialiser()" data-i18n="reset_app">🗑 Réinitialiser l'application</button>
     </div>
   </div>
 
@@ -482,19 +514,19 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       <div style="font-size:11px;color:#888" data-i18n="click_photo">Appuyez pour ajouter une photo</div>
     </div>
     <div class="field"><label data-i18n="full_name">Nom complet *</label><input type="text" id="m-nom" placeholder="ex : Koffi Mensah"></div>
-    <div class="field"><label>Téléphone</label><input type="text" id="m-tel" placeholder="+228 90 00 00 00"></div>
-    <div class="field"><label>Zone / Quartier</label><input type="text" id="m-zone" placeholder="ex : Baguida"></div>
-    <div class="field"><label>Statut</label>
+    <div class="field"><label data-i18n="telephone">Téléphone</label><input type="text" id="m-tel" placeholder="+228 90 00 00 00"></div>
+    <div class="field"><label data-i18n="zone">Zone / Quartier</label><input type="text" id="m-zone" placeholder="ex : Baguida"></div>
+    <div class="field"><label data-i18n="status">Statut</label>
       <select id="m-statut">
         <option value="actif">Actif</option>
         <option value="en attente">En attente</option>
         <option value="suspendu">Suspendu</option>
       </select>
     </div>
-    <div class="field"><label>Rattacher à (parrain) *</label><select id="m-parrain" onchange="checkParrain()"></select></div>
+    <div class="field"><label data-i18n="attach_to">Rattacher à (parrain) *</label><select id="m-parrain" onchange="checkParrain()"></select></div>
     <div id="m-parrain-info" style="margin-bottom:8px"></div>
     <div id="m-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="addMembre()">Enregistrer le membre</button>
+    <button class="btn btn-primary" onclick="addMembre()" data-i18n="save">Enregistrer le membre</button>
   </div>
 </div>
 
@@ -511,9 +543,9 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       <div style="font-size:11px;color:#888" data-i18n="click_photo">Appuyez pour changer la photo</div>
     </div>
     <div class="field"><label data-i18n="full_name">Nom complet *</label><input type="text" id="em-nom"></div>
-    <div class="field"><label>Téléphone</label><input type="text" id="em-tel"></div>
-    <div class="field"><label>Zone / Quartier</label><input type="text" id="em-zone"></div>
-    <div class="field"><label>Statut</label>
+    <div class="field"><label data-i18n="telephone">Téléphone</label><input type="text" id="em-tel"></div>
+    <div class="field"><label data-i18n="zone">Zone / Quartier</label><input type="text" id="em-zone"></div>
+    <div class="field"><label data-i18n="status">Statut</label>
       <select id="em-statut">
         <option value="actif">Actif</option>
         <option value="en attente">En attente</option>
@@ -521,8 +553,8 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       </select>
     </div>
     <div id="em-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="saveMembre()">Enregistrer les modifications</button>
-    <button class="btn btn-danger" onclick="supprimerMembre()">🗑 Supprimer ce membre</button>
+    <button class="btn btn-primary" onclick="saveMembre()" data-i18n="save_changes">Enregistrer les modifications</button>
+    <button class="btn btn-danger" onclick="supprimerMembre()" data-i18n="delete_member">🗑 Supprimer ce membre</button>
   </div>
 </div>
 
@@ -535,8 +567,8 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-add-commande" onclick="closeBg(event,'modal-add-commande')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nouvelle commande</div>
-    <div class="field"><label>Membre *</label>
+    <div class="modal-title" data-i18n="new_order_title">Nouvelle commande</div>
+    <div class="field"><label data-i18n="member_req">Membre *</label>
       <div class="ss-wrap">
         <input type="text" class="ss-search" id="c-membre-search" placeholder="🔍 Rechercher un membre..." autocomplete="off">
         <div class="ss-list" id="c-membre-list"></div>
@@ -545,8 +577,8 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     </div>
     <!-- Toggle pack standard / montant libre -->
     <div style="display:flex;gap:6px;margin-bottom:12px">
-      <button class="btn btn-primary btn-sm" id="btn-mode-pack" onclick="setModeCommande('pack')" style="flex:1">📦 Packs standards</button>
-      <button class="btn btn-sm" id="btn-mode-libre" onclick="setModeCommande('libre')" style="flex:1">✏️ Montant libre</button>
+      <button class="btn btn-primary btn-sm" id="btn-mode-pack" onclick="setModeCommande('pack')" style="flex:1" data-i18n="std_packs">📦 Packs standards</button>
+      <button class="btn btn-sm" id="btn-mode-libre" onclick="setModeCommande('libre')" style="flex:1" data-i18n="free_amount">✏️ Montant libre</button>
     </div>
     <!-- Mode packs standards -->
     <div id="c-mode-pack">
@@ -555,15 +587,15 @@ body.dark .chart-bar-bg{background:#2a2a2a}
     </div>
     <!-- Mode montant libre -->
     <div id="c-mode-libre" style="display:none">
-      <div class="field"><label>Description de la commande</label><input type="text" id="c-desc-libre" placeholder="ex : Commande personnalisée 6 000 FCFA"></div>
-      <div class="field"><label>Montant total (FCFA) *</label><input type="number" id="c-montant-libre" placeholder="ex : 6000" min="0" oninput="updateTotal()"></div>
+      <div class="field"><label data-i18n="order_desc">Description de la commande</label><input type="text" id="c-desc-libre" placeholder="ex : Commande personnalisée 6 000 FCFA"></div>
+      <div class="field"><label data-i18n="total_amount">Montant total (FCFA) *</label><input type="number" id="c-montant-libre" placeholder="ex : 6000" min="0" oninput="updateTotal()"></div>
     </div>
     <div class="card" style="margin:8px 0">
       <div class="row-line"><span class="rl-label">Total commande</span><span class="rl-val mv-blue" id="c-total">0 FCFA</span></div>
     </div>
-    <div class="field"><label>Versement initial (FCFA)</label><input type="number" id="c-verse" placeholder="0" min="0" oninput="updateTotal()"></div>
+    <div class="field"><label data-i18n="initial_verse">Versement initial (FCFA)</label><input type="number" id="c-verse" placeholder="0" min="0" oninput="updateTotal()"></div>
     <div id="c-info" style="margin-bottom:8px"></div>
-    <button class="btn btn-primary" onclick="addCommande()">Enregistrer la commande</button>
+    <button class="btn btn-primary" onclick="addCommande()" data-i18n="save_order">Enregistrer la commande</button>
   </div>
 </div>
 
@@ -571,19 +603,19 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-edit-commande" onclick="closeBg(event,'modal-edit-commande')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Modifier la commande</div>
+    <div class="modal-title" data-i18n="edit_order_title">Modifier la commande</div>
     <input type="hidden" id="ec-id">
-    <div class="field"><label>Statut</label>
+    <div class="field"><label data-i18n="status">Statut</label>
       <select id="ec-statut">
         <option value="en cours">En cours</option>
         <option value="soldé">Soldé</option>
         <option value="annulé">Annulé</option>
       </select>
     </div>
-    <div class="field"><label>Montant payé (FCFA)</label><input type="number" id="ec-paye" min="0"></div>
+    <div class="field"><label data-i18n="paid_amount">Montant payé (FCFA)</label><input type="number" id="ec-paye" min="0"></div>
     <div id="ec-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="saveCommande()">Enregistrer</button>
-    <button class="btn btn-danger" onclick="supprimerCommande()">🗑 Supprimer cette commande</button>
+    <button class="btn btn-primary" onclick="saveCommande()" data-i18n="save_btn">Enregistrer</button>
+    <button class="btn btn-danger" onclick="supprimerCommande()" data-i18n="delete_order">🗑 Supprimer cette commande</button>
   </div>
 </div>
 
@@ -591,22 +623,22 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-pay" onclick="closeBg(event,'modal-pay')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Enregistrer un paiement</div>
-    <div class="field"><label>Membre *</label>
+    <div class="modal-title" data-i18n="pay_title">Enregistrer un paiement</div>
+    <div class="field"><label data-i18n="member_req">Membre *</label>
       <div class="ss-wrap">
         <input type="text" class="ss-search" id="pay-membre-search" placeholder="🔍 Rechercher un membre..." autocomplete="off">
         <div class="ss-list" id="pay-membre-list"></div>
         <select id="pay-membre" onchange="loadPayCmds()" style="display:none"></select>
       </div>
     </div>
-    <div class="field"><label>Commande *</label><select id="pay-commande" onchange="loadPayDetail()"></select></div>
+    <div class="field"><label data-i18n="order_req">Commande *</label><select id="pay-commande" onchange="loadPayDetail()"></select></div>
     <div id="pay-detail" style="margin-bottom:8px"></div>
-    <div class="field"><label>Montant versé (FCFA) *</label><input type="number" id="pay-montant" placeholder="ex : 5000" min="0"></div>
-    <div class="field"><label>Mode de paiement</label>
+    <div class="field"><label data-i18n="amount_paid">Montant versé (FCFA) *</label><input type="number" id="pay-montant" placeholder="ex : 5000" min="0"></div>
+    <div class="field"><label data-i18n="pay_mode">Mode de paiement</label>
       <select id="pay-mode"><option value="Espèces">Espèces</option><option value="Mobile Money">Mobile Money</option></select>
     </div>
     <div id="pay-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="savePaiement()">Confirmer le paiement</button>
+    <button class="btn btn-primary" onclick="savePaiement()" data-i18n="confirm_payment">Confirmer le paiement</button>
   </div>
 </div>
 
@@ -614,12 +646,12 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-add-livraison" onclick="closeBg(event,'modal-add-livraison')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">🚚 Nouvelle livraison</div>
-    <div class="field"><label>Commande *</label><select id="lv-commande"></select></div>
-    <div class="field"><label>Adresse de livraison *</label><input type="text" id="lv-adresse" placeholder="ex : Rue des Cocotiers, Baguida"></div>
-    <div class="field"><label>Date prévue</label><input type="date" id="lv-date"></div>
-    <div class="field"><label>Livreur</label><input type="text" id="lv-livreur" placeholder="Nom du livreur"></div>
-    <div class="field"><label>Statut</label>
+    <div class="modal-title" data-i18n="delivery_title">🚚 Nouvelle livraison</div>
+    <div class="field"><label data-i18n="order_req">Commande *</label><select id="lv-commande"></select></div>
+    <div class="field"><label data-i18n="delivery_address">Adresse de livraison *</label><input type="text" id="lv-adresse" placeholder="ex : Rue des Cocotiers, Baguida"></div>
+    <div class="field"><label data-i18n="delivery_date">Date prévue</label><input type="date" id="lv-date"></div>
+    <div class="field"><label data-i18n="delivery_agent">Livreur</label><input type="text" id="lv-livreur" placeholder="Nom du livreur"></div>
+    <div class="field"><label data-i18n="status">Statut</label>
       <select id="lv-statut">
         <option value="en attente">⏳ En attente</option>
         <option value="en route">🚚 En route</option>
@@ -627,7 +659,7 @@ body.dark .chart-bar-bg{background:#2a2a2a}
       </select>
     </div>
     <div id="lv-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="addLivraison()">Enregistrer la livraison</button>
+    <button class="btn btn-primary" onclick="addLivraison()" data-i18n="save_delivery">Enregistrer la livraison</button>
   </div>
 </div>
 
@@ -635,9 +667,9 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-carte" onclick="closeBg(event,'modal-carte')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">🪪 Carte membre</div>
+    <div class="modal-title" data-i18n="member_card_title">🪪 Carte membre</div>
     <div id="carte-membre-content"></div>
-    <button class="btn btn-primary" style="margin-top:12px" onclick="imprimerCarte()">🖨️ Imprimer la carte</button>
+    <button class="btn btn-primary" style="margin-top:12px" onclick="imprimerCarte()" data-i18n="print_member_card">🖨️ Imprimer la carte</button>
   </div>
 </div>
 
@@ -645,23 +677,44 @@ body.dark .chart-bar-bg{background:#2a2a2a}
 <div class="overlay" id="modal-comptes" onclick="closeBg(event,'modal-comptes')">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">🔑 Accès filleuls</div>
+    <div class="modal-title" data-i18n="access_title">🔑 Accès filleuls</div>
     <p style="font-size:13px;color:#555;margin-bottom:14px">Créez un identifiant et mot de passe pour chaque filleul. Ils verront uniquement leur propre réseau.</p>
-    <div class="field"><label>Filleul</label>
+    <div class="field"><label data-i18n="filleul_label">Filleul</label>
       <div class="ss-wrap">
         <input type="text" class="ss-search" id="fc-membre-search" placeholder="🔍 Rechercher un filleul..." autocomplete="off">
         <div class="ss-list" id="fc-membre-list"></div>
         <select id="fc-membre" style="display:none"></select>
       </div>
     </div>
-    <div class="field"><label>Identifiant</label><input type="text" id="fc-id" placeholder="ex : alice"></div>
-    <div class="field"><label>Mot de passe</label><input type="password" id="fc-pwd" placeholder="min. 4 caractères"></div>
+    <div class="field"><label data-i18n="fc_id_label">Identifiant</label><input type="text" id="fc-id" placeholder="ex : alice"></div>
+    <div class="field"><label data-i18n="fc_pwd_label">Mot de passe</label><input type="password" id="fc-pwd" placeholder="min. 4 caractères"></div>
     <div id="fc-err" class="alert a-red" style="display:none"></div>
-    <button class="btn btn-primary" onclick="saveCompteFilleul()">Créer / Mettre à jour</button>
+    <button class="btn btn-primary" onclick="saveCompteFilleul()" data-i18n="create_update">Créer / Mettre à jour</button>
     <div style="margin-top:16px">
       <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#555">Comptes existants</div>
       <div id="fc-liste"></div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL CHANGER MOT DE PASSE -->
+<div class="overlay" id="modal-pwd" onclick="closeBg(event,'modal-pwd')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" data-i18n="change_pwd_title">🔐 Changer le mot de passe</div>
+    <p style="font-size:13px;color:#666;margin-bottom:16px">Choisissez un mot de passe fort que vous seul connaissez.</p>
+    <div class="field"><label data-i18n="current_pwd">Mot de passe actuel</label>
+      <input type="password" id="pwd-actuel" placeholder="Mot de passe actuel">
+    </div>
+    <div class="field"><label data-i18n="new_pwd">Nouveau mot de passe</label>
+      <input type="password" id="pwd-nouveau" placeholder="Nouveau mot de passe (min. 6 caractères)">
+    </div>
+    <div class="field"><label data-i18n="confirm_pwd">Confirmer le nouveau mot de passe</label>
+      <input type="password" id="pwd-confirm" placeholder="Répétez le nouveau mot de passe">
+    </div>
+    <div id="pwd-err" class="alert a-red" style="display:none"></div>
+    <div id="pwd-ok" class="alert a-green" style="display:none"></div>
+    <button class="btn btn-primary" onclick="changerMotDePasse()">Changer le mot de passe</button>
   </div>
 </div>
 
@@ -692,7 +745,48 @@ const I18N = {
     performance:"📊 Performance par filleul", monthly:"📅 Encaissements par mois",
     top_packs:"📦 Packs les plus vendus", settings:"⚙️ Paramètres",
     report_title:"Rapport & Analyses", sales:"vente", orders_count:"commande",
-    member_count:"membre", network_count:"réseau"
+    member_count:"membre", network_count:"réseau",
+    // Login
+    login_id:"Identifiant", login_pwd:"Mot de passe",
+    // Dashboard cards
+    global_totals:"💰 Totaux globaux", late_payments:"⚠️ Retards de paiement", recent_orders:"🕐 Dernières commandes",
+    network_chart:"🌐 Organigramme complet",
+    // Rapport cards
+    backup_title:"💾 Sauvegarde & restauration", cloud_title:"☁️ Synchronisation cloud",
+    manual_backup:"💾 Sauvegarde manuelle", settings_title:"⚙️ Paramètres",
+    export_data:"⬇️ Exporter mes données", import_data:"⬆️ Importer une sauvegarde",
+    sync_now:"🔄 Synchroniser maintenant", export_data2:"⬇️ Exporter les données",
+    // Modale commande
+    new_order_title:"Nouvelle commande", member_req:"Membre *",
+    std_packs:"📦 Packs standards", free_amount:"✏️ Montant libre",
+    order_desc:"Description de la commande", total_amount:"Montant total (FCFA) *",
+    initial_verse:"Versement initial (FCFA)", save_order:"Enregistrer la commande",
+    // Modale modifier commande
+    edit_order_title:"Modifier la commande", paid_amount:"Montant payé (FCFA)",
+    save_btn:"Enregistrer", delete_order:"🗑 Supprimer cette commande",
+    status_en_cours:"En cours", status_soldee:"Soldée", status_annulee:"Annulée",
+    // Modale paiement
+    pay_title:"Enregistrer un paiement", order_req:"Commande *",
+    amount_paid:"Montant versé (FCFA) *", pay_mode:"Mode de paiement",
+    pay_cash:"Espèces", pay_momo:"Mobile Money", pay_bank:"Virement",
+    // Modale livraison
+    delivery_title:"🚚 Nouvelle livraison", delivery_address:"Adresse de livraison *",
+    delivery_date:"Date prévue", delivery_agent:"Livreur",
+    save_delivery:"Enregistrer la livraison",
+    delivered:"✅ Livrées",
+    // Modale carte membre
+    member_card_title:"🪪 Carte membre", print_member_card:"🖨️ Imprimer la carte",
+    // Modale accès filleuls
+    access_title:"🔑 Accès filleuls", filleul_label:"Filleul",
+    fc_id_label:"Identifiant", fc_pwd_label:"Mot de passe",
+    create_update:"Créer / Mettre à jour",
+    search_member:"🔍 Rechercher un membre...", search_filleul:"🔍 Rechercher un filleul...",
+    // Modale mot de passe
+    change_pwd_title:"🔐 Changer le mot de passe",
+    current_pwd:"Mot de passe actuel", new_pwd:"Nouveau mot de passe",
+    confirm_pwd:"Confirmer le nouveau mot de passe",
+    add_member_btn:"+ Ajouter un membre", new_delivery:"🚚 Nouvelle livraison",
+    backup_desc:"Vos données sont stockées uniquement sur cet appareil. Exportez régulièrement une sauvegarde pour ne rien perdre.",
   },
   en: {
     add_member:"Add a member", edit_member:"Edit member", full_name:"Full name *",
@@ -715,7 +809,48 @@ const I18N = {
     performance:"📊 Performance by member", monthly:"📅 Monthly collections",
     top_packs:"📦 Best-selling packs", settings:"⚙️ Settings",
     report_title:"Report & Analytics", sales:"sale", orders_count:"order",
-    member_count:"member", network_count:"network"
+    member_count:"member", network_count:"network",
+    // Login
+    login_id:"Username", login_pwd:"Password",
+    // Dashboard cards
+    global_totals:"💰 Global totals", late_payments:"⚠️ Late payments", recent_orders:"🕐 Recent orders",
+    network_chart:"🌐 Full org chart",
+    // Rapport cards
+    backup_title:"💾 Backup & restore", cloud_title:"☁️ Cloud sync",
+    manual_backup:"💾 Manual backup", settings_title:"⚙️ Settings",
+    export_data:"⬇️ Export my data", import_data:"⬆️ Import a backup",
+    sync_now:"🔄 Sync now", export_data2:"⬇️ Export data",
+    // Modale commande
+    new_order_title:"New order", member_req:"Member *",
+    std_packs:"📦 Standard packs", free_amount:"✏️ Free amount",
+    order_desc:"Order description", total_amount:"Total amount (FCFA) *",
+    initial_verse:"Initial payment (FCFA)", save_order:"Save order",
+    // Modale modifier commande
+    edit_order_title:"Edit order", paid_amount:"Amount paid (FCFA)",
+    save_btn:"Save", delete_order:"🗑 Delete this order",
+    status_en_cours:"In progress", status_soldee:"Settled", status_annulee:"Cancelled",
+    // Modale paiement
+    pay_title:"Record a payment", order_req:"Order *",
+    amount_paid:"Amount paid (FCFA) *", pay_mode:"Payment method",
+    pay_cash:"Cash", pay_momo:"Mobile Money", pay_bank:"Bank transfer",
+    // Modale livraison
+    delivery_title:"🚚 New delivery", delivery_address:"Delivery address *",
+    delivery_date:"Expected date", delivery_agent:"Delivery agent",
+    save_delivery:"Save delivery",
+    delivered:"✅ Delivered",
+    // Modale carte membre
+    member_card_title:"🪪 Member card", print_member_card:"🖨️ Print card",
+    // Modale accès filleuls
+    access_title:"🔑 Member access", filleul_label:"Member",
+    fc_id_label:"Username", fc_pwd_label:"Password",
+    create_update:"Create / Update",
+    search_member:"🔍 Search a member...", search_filleul:"🔍 Search a member...",
+    // Modale mot de passe
+    change_pwd_title:"🔐 Change password",
+    current_pwd:"Current password", new_pwd:"New password",
+    confirm_pwd:"Confirm new password",
+    add_member_btn:"+ Add a member", new_delivery:"🚚 New delivery",
+    backup_desc:"Your data is stored only on this device. Export backups regularly to avoid data loss.",
   }
 };
 let currentLang = localStorage.getItem("netrova_lang") || "fr";
@@ -751,8 +886,29 @@ function applyTranslations(){
   // Search placeholder
   const si=document.getElementById("search-input");
   if(si) si.placeholder=t("search_placeholder");
+  const rs=document.getElementById("reseau-search");
+  if(rs) rs.placeholder=t("search_placeholder");
   const fs=document.getElementById("filtre-statut");
   if(fs&&fs.options[0]) fs.options[0].text=t("all_statuses");
+  // Searchable selects placeholders
+  const cm=document.getElementById("c-membre-search");
+  if(cm) cm.placeholder=t("search_member");
+  const pm=document.getElementById("pay-membre-search");
+  if(pm) pm.placeholder=t("search_member");
+  const fc=document.getElementById("fc-membre-search");
+  if(fc) fc.placeholder=t("search_filleul");
+  // Statuts select options statiques
+  [["ec-statut",["status_en_cours","status_soldee","status_annulee"]],
+   ["lv-statut",["status_en_cours","delivered","status_annulee"]]].forEach(([id,keys])=>{
+    const sel=document.getElementById(id);
+    if(sel) [...sel.options].forEach((o,i)=>{if(keys[i])o.text=t(keys[i]);});
+  });
+  // Modes de paiement
+  const pm2=document.getElementById("pay-mode");
+  if(pm2&&pm2.options.length>=3){pm2.options[0].text=t("pay_cash");pm2.options[1].text=t("pay_momo");pm2.options[2].text=t("pay_bank");}
+  // Reset description
+  const rd=document.getElementById("reset-desc-text");
+  if(rd) rd.textContent=t("reset_desc");
 }
 
 // ─── PHOTOS PROFIL ────────────────────────────────────────
@@ -799,7 +955,7 @@ const PACKS={
   "4B":{nom:"Pack 4B",prix:15000,produits:["Riz","Huile","Macaroni","Haricot","Tomate","Cube","Sardines","Couscous (grande qté)"]},
 };
 const MAX=3, PENALITE=0.01, STORAGE_KEY="netrova_db_v2";
-const FOND_PWD="netrova2024";
+let FOND_PWD = localStorage.getItem("netrova_fond_pwd") || "netrova2024";
 
 // ─── UTILS ───────────────────────────────────────────────
 function jours(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString();}
@@ -860,6 +1016,11 @@ async function syncFirebase(){
     afficherStatutSync("local");
     return;
   }
+  if(!window._firebase.authReady){
+    console.warn("Firebase: authentification anonyme indisponible, synchronisation cloud ignorée (vérifiez qu'elle est activée dans la console Firebase).");
+    afficherStatutSync("error");
+    return;
+  }
   try{
     afficherStatutSync("syncing");
     const {db:fdb,doc,getDoc,onSnapshot}=window._firebase;
@@ -868,21 +1029,28 @@ async function syncFirebase(){
     const snap=await getDoc(docRef);
     if(snap.exists()){
       const data=snap.data();
-      // Fusionner avec données locales (cloud prioritaire)
-      db.membres  = data.membres   || db.membres;
-      db.commandes= data.commandes || db.commandes;
-      db.livraisons=data.livraisons|| db.livraisons||{};
-      db.cM = data.cM || db.cM;
-      db.cC = data.cC || db.cC;
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
-      afficherStatutSync("synced");
+      // Si le cloud vient d'être réinitialisé (_reset:true), ne pas écraser le local vide
+      if(data._reset){
+        afficherStatutSync("synced");
+      } else {
+        // Cloud prioritaire : fusionner avec données locales
+        db.membres  = data.membres   || db.membres;
+        db.commandes= data.commandes || db.commandes;
+        db.livraisons=data.livraisons|| db.livraisons||{};
+        db.cM = data.cM || db.cM;
+        db.cC = data.cC || db.cC;
+        if(data.comptes_filleuls){FILLEUL_COMPTES=data.comptes_filleuls;localStorage.setItem("netrova_comptes",JSON.stringify(FILLEUL_COMPTES));}
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
+        afficherStatutSync("synced");
+      }
     } else {
       // Première utilisation — pousser les données locales
       await sauvegarderCloud();
       afficherStatutSync("synced");
     }
-    // Écouter les changements en temps réel
-    onSnapshot(docRef,(snap)=>{
+    // Écouter les changements en temps réel (un seul écouteur actif à la fois)
+    if(window._ssUnsub) window._ssUnsub();
+    window._ssUnsub=onSnapshot(docRef,(snap)=>{
       if(snap.exists()){
         const data=snap.data();
         db.membres  = data.membres   || db.membres;
@@ -890,6 +1058,7 @@ async function syncFirebase(){
         db.livraisons=data.livraisons|| db.livraisons||{};
         db.cM = data.cM || db.cM;
         db.cC = data.cC || db.cC;
+        if(data.comptes_filleuls){FILLEUL_COMPTES=data.comptes_filleuls;localStorage.setItem("netrova_comptes",JSON.stringify(FILLEUL_COMPTES));}
         localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
         // Rafraîchir l'affichage
         const p=document.querySelector(".page.active");
@@ -900,6 +1069,7 @@ async function syncFirebase(){
           if(p.id==="p-paiements")renderPaiements();
           if(p.id==="p-reseau")renderReseau();
         }
+        afficherStatutSync("synced");
       }
     });
   }catch(err){
@@ -916,17 +1086,59 @@ async function sauvegarderCloud(){
     commandes: db.commandes,
     livraisons: db.livraisons||{},
     cM: db.cM, cC: db.cC,
+    comptes_filleuls: FILLEUL_COMPTES,
     updated_at: new Date().toISOString()
   });
 }
 
+let toastTimer;
+function showToast(icon, msg, color="#1a1a1a", duration=3000){
+  const t=document.getElementById("toast");
+  if(!t)return;
+  clearTimeout(toastTimer);
+  t.innerHTML=`<span style="font-size:18px">${icon}</span><span>${msg}</span>`;
+  t.style.background=color;
+  t.classList.add("show");
+  toastTimer=setTimeout(()=>t.classList.remove("show"), duration);
+}
+
 function afficherStatutSync(statut){
   const dot=document.getElementById("save-dot");
-  if(!dot)return;
-  if(statut==="syncing"){dot.className="save-dot saving";dot.title="Synchronisation cloud...";}
-  else if(statut==="synced"){dot.className="save-dot saved";dot.title="☁️ Synchronisé avec le cloud";}
-  else if(statut==="error"){dot.className="save-dot";dot.title="⚠️ Erreur cloud — données locales";}
-  else{dot.className="save-dot saved";dot.title="💾 Sauvegarde locale";}
+  const icon=document.getElementById("sync-icon");
+  const text=document.getElementById("sync-text");
+  const badge=document.getElementById("sync-badge");
+  if(statut==="syncing"){
+    if(dot){dot.className="save-dot saving";dot.title="Synchronisation cloud...";}
+    if(icon)icon.textContent="🔄";
+    if(text){text.textContent="Synchronisation en cours...";text.style.color="#185FA5";}
+    if(badge)badge.style.background="#EAF1FB";
+  } else if(statut==="synced"){
+    if(dot){dot.className="save-dot saved";dot.title="☁️ Synchronisé avec le cloud";}
+    if(icon)icon.textContent="✅";
+    const now=new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+    if(text){text.textContent=`Synchronisé avec le cloud — ${now}`;text.style.color="#0F6E56";}
+    if(badge)badge.style.background="#E9F8F0";
+    showToast("☁️","Synchronisé avec le cloud","#0F6E56");
+  } else if(statut==="error"){
+    if(dot){dot.className="save-dot";dot.title="⚠️ Erreur cloud — données locales";}
+    if(icon)icon.textContent="⚠️";
+    if(text){text.textContent="Erreur de connexion au cloud. Données sauvegardées en local.";text.style.color="#A32D2D";}
+    if(badge)badge.style.background="#FDF2F2";
+    showToast("⚠️","Erreur cloud — données locales uniquement","#A32D2D",5000);
+  } else if(statut==="local"){
+    if(dot){dot.className="save-dot saved";dot.title="💾 Sauvegarde locale";}
+    if(icon)icon.textContent="💾";
+    if(text){text.textContent="Mode local uniquement (Firebase non configuré).";text.style.color="#666";}
+    if(badge)badge.style.background="#F6F8FB";
+  }
+}
+
+async function syncFirebaseManuel(){
+  const btn=document.querySelector("[onclick='syncFirebaseManuel()']");
+  if(btn){btn.disabled=true;btn.textContent="⏳ Synchronisation...";}
+  showToast("🔄","Synchronisation en cours...","#185FA5",10000);
+  await syncFirebase();
+  if(btn){btn.disabled=false;btn.textContent="🔄 Synchroniser maintenant";}
 }
 
 let saveTimer;
@@ -937,8 +1149,8 @@ function sauvegarder(){
   // Toujours sauvegarder en local (backup)
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}catch(e){}
   saveTimer=setTimeout(async ()=>{
-    // Sauvegarde cloud si Firebase configuré
-    if(window._firebase&&window._firebase.configured){
+    // Sauvegarde cloud si Firebase configuré et authentifié
+    if(window._firebase&&window._firebase.configured&&window._firebase.authReady){
       try{
         const {db:fdb,setDoc,doc}=window._firebase;
         await setDoc(doc(fdb,"netrova","data"),{
@@ -947,6 +1159,7 @@ function sauvegarder(){
           livraisons: db.livraisons||{},
           cM: db.cM,
           cC: db.cC,
+          comptes_filleuls: FILLEUL_COMPTES,
           updated_at: new Date().toISOString()
         });
         dot.className="save-dot saved";
@@ -1026,11 +1239,14 @@ function ouvrirApp(){
   document.getElementById("login-screen").style.display="none";
   document.getElementById("main-app").style.display="flex";
   const m=db.membres[currentUser.membre_id];
-  document.getElementById("topbar-sub").textContent=currentUser.role==="fondateur"?"Fondateur — Accès complet":(m?m.nom+" — Mon réseau":"");
+  document.getElementById("topbar-sub").textContent=m?m.nom:"";
   if(currentUser.role!=="fondateur"){
     document.getElementById("btn-add-membre").style.display="none";
     document.getElementById("btn-add-commande").style.display="none";
     document.getElementById("btn-add-paiement").style.display="none";
+    document.getElementById("btn-pwd").style.display="none";
+  } else {
+    document.getElementById("btn-pwd").style.display="block";
   }
   renderDashboard();
   applyTranslations();
@@ -1050,6 +1266,23 @@ function doLogout(){
 }
 
 function isFondateur(){return currentUser&&currentUser.role==="fondateur";}
+
+function changerMotDePasse(){
+  const actuel=document.getElementById("pwd-actuel").value;
+  const nouveau=document.getElementById("pwd-nouveau").value;
+  const confirm=document.getElementById("pwd-confirm").value;
+  const err=document.getElementById("pwd-err");
+  const ok=document.getElementById("pwd-ok");
+  err.style.display="none"; ok.style.display="none";
+  if(actuel!==FOND_PWD){err.textContent="Mot de passe actuel incorrect.";err.style.display="block";return;}
+  if(nouveau.length<6){err.textContent="Le nouveau mot de passe doit avoir au moins 6 caractères.";err.style.display="block";return;}
+  if(nouveau!==confirm){err.textContent="Les deux mots de passe ne correspondent pas.";err.style.display="block";return;}
+  FOND_PWD=nouveau;
+  localStorage.setItem("netrova_fond_pwd",nouveau);
+  ["pwd-actuel","pwd-nouveau","pwd-confirm"].forEach(id=>document.getElementById(id).value="");
+  ok.textContent="✔ Mot de passe changé avec succès !";ok.style.display="block";
+  setTimeout(()=>closeModal("modal-pwd"),2000);
+}
 
 // ─── NAV ──────────────────────────────────────────────────
 function showPage(id,btn){
@@ -1314,11 +1547,14 @@ function openDetail(id){
       </div>`;
     }).join("");
   }
+  // Trouver commandes ouvertes pour ce membre
+  const cmdsOuvertes=Object.values(db.commandes).filter(c=>c.membre_id===id&&c.solde_restant>0);
   const btnRow=`<div class="btn-row no-print" style="flex-wrap:wrap">
     ${isFondateur()?`<button class="btn" onclick="openEditMembre('${id}',event)">✏️ Modifier</button>`:""}
     <button class="btn btn-primary" onclick="imprimerFiche('${id}')">🖨️ Fiche</button>
     <button class="btn" onclick="voirReseau('${id}');closeModal('modal-detail')">🌐 Réseau</button>
     <button class="btn" onclick="genererCarte('${id}');closeModal('modal-detail')" style="background:#1DB954;color:#fff;border-color:#1DB954">🪪 Carte</button>
+    ${cmdsOuvertes.length?`<button class="btn" style="background:#25D366;color:#fff;border-color:#25D366;width:100%;margin-top:4px" onclick="partagerRecuWhatsApp('${cmdsOuvertes[0].id}');closeModal('modal-detail')">📲 Envoyer reçu WhatsApp</button>`:""}
   </div>`;
   h+=btnRow;
   document.getElementById("modal-detail-content").innerHTML=h;
@@ -1465,7 +1701,10 @@ function renderCommandes(){
       <div class="row-line"><span class="rl-label">Total</span><span class="rl-val">${fmtN(c.montant_total)}</span></div>
       <div class="row-line"><span class="rl-label">Payé</span><span class="rl-val">${fmtN(c.montant_paye)}</span></div>
       ${!solde?`<div class="row-line"><span class="rl-label" style="color:#854F0B">Solde dû${s.pen>0?` (+${fmtN(s.pen)} pén.)`:""}</span><span class="rl-val mv-red">${fmtN(s.total)}</span></div>`:""}
-      <button class="btn btn-sm" style="margin-top:8px;width:100%" onclick="imprimerRecu('${c.id}')">🖨️ Imprimer reçu</button>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-sm" onclick="imprimerRecu('${c.id}')">🖨️ Imprimer</button>
+        <button class="btn btn-sm" style="background:#25D366;color:#fff;border-color:#25D366" onclick="partagerRecuWhatsApp('${c.id}')">📲 WhatsApp</button>
+      </div>
     </div>`;
   }).join("");
 }
@@ -1513,7 +1752,8 @@ function savePaiement(){
   cmd.historique.push({date:n,montant:reel,pen:s.pen,type:mode});
   sauvegarder();closeModal("modal-pay");
   document.getElementById("pay-montant").value="";
-  imprimerRecu(cid,true);
+  // Proposer impression ou WhatsApp
+  afficherChoixPartage(cid);
   renderDashboard();renderPaiements();
   if(cmd.solde_restant===0)alert("✔ Commande "+cid+" entièrement soldée !");
 }
@@ -1592,6 +1832,82 @@ function voirReseau(id){
 }
 
 // ─── IMPRESSION ───────────────────────────────────────────
+function afficherChoixPartage(cid){
+  const cmd=db.commandes[cid];if(!cmd)return;
+  const m=db.membres[cmd.membre_id];
+  const tel=m&&m.telephone?m.telephone:"";
+  // Modal de choix
+  const overlay=document.createElement("div");
+  overlay.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end;justify-content:center";
+  overlay.innerHTML=`<div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:24px 20px 36px">
+    <div style="width:40px;height:4px;border-radius:2px;background:#d1d5db;margin:0 auto 16px"></div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px">Paiement enregistré ✔</div>
+    <div style="font-size:13px;color:#888;margin-bottom:20px">Comment souhaitez-vous envoyer le reçu ?</div>
+    <button onclick="partagerRecuWhatsApp('${cid}');this.closest('[style]').remove()" style="width:100%;padding:13px;font-size:14px;font-weight:700;background:#25D366;color:#fff;border:none;border-radius:12px;cursor:pointer;margin-bottom:10px;font-family:inherit">📲 Envoyer sur WhatsApp</button>
+    <button onclick="imprimerRecu('${cid}',true);this.closest('[style]').remove()" style="width:100%;padding:13px;font-size:14px;font-weight:600;background:#f8f9fa;color:#1a1a1a;border:1px solid #e5e7eb;border-radius:12px;cursor:pointer;margin-bottom:10px;font-family:inherit">🖨️ Imprimer / Télécharger PDF</button>
+    <button onclick="this.closest('[style]').remove()" style="width:100%;padding:11px;font-size:13px;background:transparent;color:#888;border:none;cursor:pointer;font-family:inherit">Fermer</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click",e=>{if(e.target===overlay)overlay.remove();});
+}
+
+function partagerRecuWhatsApp(cid,apres=false){
+  const cmd=db.commandes[cid];if(!cmd)return;
+  const m=db.membres[cmd.membre_id];
+  const s=calcSolde(cmd);
+  const dernierPay=apres&&cmd.historique.length?cmd.historique[cmd.historique.length-1]:null;
+  const numRecu=cid+"-"+Date.now().toString().slice(-5);
+  const estSolde=cmd.solde_restant<=0;
+  const nomClient=m?m.nom:cmd.membre_nom;
+  const tel=m&&m.telephone?m.telephone:"";
+  const zone=m&&m.zone?m.zone:"";
+
+  // ── Construire le message WhatsApp formaté ────────────────
+  const ligneH  = "━━━━━━━━━━━━━━━━━━━━";
+  const msg = [
+    "🧾 *REÇU DE PAIEMENT NETROVA*",
+    ligneH,
+    `📋 N° Reçu : *${numRecu}*`,
+    `📅 Date    : *${fmtDs(nowIso())}*`,
+    ligneH,
+    "👤 *INFORMATIONS CLIENT*",
+    `Nom    : *${nomClient}*`,
+    zone?`Zone   : ${zone}`:"",
+    tel?`Tél    : ${tel}`:"",
+    ligneH,
+    "📦 *COMMANDE*",
+    `Réf    : ${cmd.id}`,
+    `Pack   : *${cmd.packs_str}*`,
+    `Achat  : ${fmtDs(cmd.date_commande)}`,
+    ligneH,
+    "💰 *DÉTAIL FINANCIER*",
+    `Total commande  : *${fmtN(cmd.montant_total)}*`,
+    `Total payé      : *${fmtN(cmd.montant_paye)}*`,
+    dernierPay?`✅ Versement jour : *${fmtN(dernierPay.montant)}*`:"",
+    s.pen>0?`⚠️ Pénalité (${s.jours}j×1%) : *${fmtN(s.pen)}*`:"",
+    ligneH,
+    estSolde
+      ? "✅ *SOLDE : SOLDÉ INTÉGRALEMENT*"
+      : `🔴 *SOLDE RESTANT : ${fmtN(s.total)}*`,
+    ligneH,
+    "📞 +228 90 49 12 87",
+    "_NETROVA — La paix, la confiance et la suffisance_"
+  ].filter(Boolean).join("\n");
+
+  const encoded=encodeURIComponent(msg);
+
+  // Ouvrir WhatsApp avec ou sans numéro
+  if(tel){
+    const telClean=tel.replace(/\D/g,"");
+    // Ajouter indicatif 228 si manquant
+    const telFull=telClean.startsWith("228")?telClean:"228"+telClean;
+    window.open(`https://wa.me/${telFull}?text=${encoded}`,"_blank");
+  } else {
+    // Pas de numéro → WhatsApp sans destinataire (l'user choisit)
+    window.open(`https://wa.me/?text=${encoded}`,"_blank");
+  }
+}
+
 function imprimerFiche(id){
   const m=db.membres[id];if(!m)return;
   const cmds=Object.values(db.commandes).filter(c=>c.membre_id===id);
@@ -1708,10 +2024,8 @@ function renderDashboard(){
   let cmds=Object.values(db.commandes);
   let mbrs=Object.values(db.membres);
   if(currentUser&&currentUser.role==="filleul"){
-    const sousR=getReseau(currentUser.membre_id).map(r=>r.m.id);
-    sousR.push(currentUser.membre_id);
-    cmds=cmds.filter(c=>sousR.includes(c.membre_id));
-    mbrs=mbrs.filter(m=>sousR.includes(m.id));
+    renderDashboardFilleul();
+    return;
   }
   document.getElementById("d-membres").textContent=mbrs.length;
   document.getElementById("d-commandes").textContent=cmds.length;
@@ -1738,8 +2052,11 @@ function renderDashboard(){
       ${urgents.map(c=>{const s=calcSolde(c);return`<div class="row-line">
         <div><div style="font-size:13px;font-weight:600">${c.membre_nom}</div>
         <div style="font-size:11px;color:#888">${c.id} · ${s.jours} jours de retard</div></div>
-        <div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#A32D2D">${fmtN(s.total)}</div>
-        <div style="font-size:11px;color:#854F0B">+${fmtN(s.pen)} pén.</div></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#A32D2D">${fmtN(s.total)}</div>
+          <div style="font-size:11px;color:#854F0B">+${fmtN(s.pen)} pén.</div></div>
+          <button onclick="notifierMembreWhatsApp('${c.membre_id}')" style="background:#25D366;border:none;color:#fff;border-radius:20px;padding:4px 8px;font-size:16px;cursor:pointer" title="Notifier sur WhatsApp">📲</button>
+        </div>
       </div>`;}).join("")}
     </div>`;
   } else uw.innerHTML="";
@@ -1749,9 +2066,12 @@ function renderDashboard(){
   rel.innerHTML=retards.length?retards.map(c=>{const s=calcSolde(c);return`<div class="row-line">
     <div><div style="font-size:13px;font-weight:600">${c.membre_nom}</div>
     <div style="font-size:11px;color:#888">${c.id} · ${s.jours} jour${s.jours>1?"s":""} de retard</div></div>
-    <div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#A32D2D">${fmtN(s.total)}</div>
-    <div style="font-size:11px;color:#854F0B">+${fmtN(s.pen)} pén.</div></div>
-  </div>`;}).join(""):
+    <div style="display:flex;align-items:center;gap:6px">
+      <div style="text-align:right"><div style="font-size:13px;font-weight:700;color:#A32D2D">${fmtN(s.total)}</div>
+      <div style="font-size:11px;color:#854F0B">+${fmtN(s.pen)} pén.</div></div>
+      <button onclick="notifierMembreWhatsApp('${c.membre_id}')" style="background:#25D366;border:none;color:#fff;border-radius:20px;padding:4px 8px;font-size:16px;cursor:pointer" title="Notifier sur WhatsApp">📲</button>
+    </div>
+  </div>`;}).join("")+`<button class="btn" style="background:#25D366;color:#fff;border-color:#25D366;margin-top:10px;width:100%" onclick="notifierRetardsWhatsApp()">📲 Notifier tous les retards</button>`:
   `<div style="font-size:13px;color:#888">Aucun retard de paiement.</div>`;
   renderGraphiques();
   const recents=cmds.sort((a,b)=>new Date(b.date_commande)-new Date(a.date_commande)).slice(0,5);
@@ -1782,6 +2102,7 @@ function saveCompteFilleul(){
   if(pwd.length<4){err.textContent="Mot de passe trop court (min. 4 caractères).";err.style.display="block";return;}
   FILLEUL_COMPTES[id]={pwd,membre_id:mid};
   localStorage.setItem("netrova_comptes",JSON.stringify(FILLEUL_COMPTES));
+  sauvegarder();
   document.getElementById("fc-id").value="";
   document.getElementById("fc-pwd").value="";
   renderComptesList();
@@ -1805,6 +2126,7 @@ function supprimerCompte(id){
   if(!confirm("Supprimer l'accès de "+id+" ?"))return;
   delete FILLEUL_COMPTES[id];
   localStorage.setItem("netrova_comptes",JSON.stringify(FILLEUL_COMPTES));
+  sauvegarder();
   renderComptesList();
 }
 
@@ -1921,6 +2243,55 @@ function renderPacksRapport(){
     </div>`).join("");
 }
 
+// ─── WHATSAPP NOTIFICATIONS ──────────────────────────────
+function notifierRetardsWhatsApp(){
+  // Trouver toutes commandes en retard > 7 jours
+  const mid=currentUser?currentUser.membre_id:null;
+  let cmds=Object.values(db.commandes);
+  if(currentUser&&currentUser.role==="filleul"){
+    const sousR=getReseau(mid).map(r=>r.m.id);sousR.push(mid);
+    cmds=cmds.filter(c=>sousR.includes(c.membre_id));
+  }
+  const retards=cmds.filter(c=>calcSolde(c).jours>7&&c.solde_restant>0);
+  if(!retards.length){alert("Aucun retard de plus de 7 jours.");return;}
+  // Construire le message WhatsApp
+  const lignes=retards.map(c=>{
+    const s=calcSolde(c);
+    const m=db.membres[c.membre_id];
+    const tel=m&&m.telephone?m.telephone:"";
+    return`👤 ${c.membre_nom}\n📦 ${c.packs_str}\n💰 Solde dû : ${fmtN(s.total)} (dont ${fmtN(s.pen)} pénalité)\n⏰ ${s.jours} jours de retard`;
+  }).join("\n\n");
+  const message=`🔔 *NETROVA — Rappel de paiement*\n\nBonjour,\n\nVoici les paiements en retard de plus de 7 jours :\n\n${lignes}\n\n_Merci de régulariser votre situation au plus tôt._\n\n📞 +228 90 49 12 87\nNETROVA — Réseau de confiance`;
+  const encoded=encodeURIComponent(message);
+  // Si un seul retard et le membre a un numéro → ouvrir directement
+  if(retards.length===1){
+    const m=db.membres[retards[0].membre_id];
+    if(m&&m.telephone){
+      const tel=m.telephone.replace(/\D/g,"");
+      window.open(`https://wa.me/${tel}?text=${encoded}`,"_blank");
+      return;
+    }
+  }
+  // Sinon ouvrir WhatsApp sans numéro (l'utilisateur choisira)
+  window.open(`https://wa.me/?text=${encoded}`,"_blank");
+}
+
+function notifierMembreWhatsApp(membre_id){
+  const m=db.membres[membre_id];
+  if(!m){alert("Membre introuvable.");return;}
+  const cmds=Object.values(db.commandes).filter(c=>c.membre_id===membre_id&&c.solde_restant>0);
+  if(!cmds.length){alert("Aucun solde en attente pour ce membre.");return;}
+  const s=calcSolde(cmds[0]);
+  const message=`Bonjour ${m.nom} 👋\n\n🔔 *Rappel NETROVA*\n\n📦 Commande : ${cmds[0].packs_str}\n💰 Solde restant : ${fmtN(s.total)}${s.pen>0?" (dont "+fmtN(s.pen)+" de pénalité)":""}\n⏰ ${s.jours} jour(s) de retard\n\nMerci de régulariser votre paiement.\n\n📞 +228 90 49 12 87 — NETROVA`;
+  const encoded=encodeURIComponent(message);
+  if(m.telephone){
+    const tel=m.telephone.replace(/\D/g,"");
+    window.open(`https://wa.me/${tel}?text=${encoded}`,"_blank");
+  } else {
+    window.open(`https://wa.me/?text=${encoded}`,"_blank");
+  }
+}
+
 function toggleDark(){
   const dark=document.body.classList.toggle("dark");
   localStorage.setItem("netrova_dark",dark?"1":"0");
@@ -1928,12 +2299,23 @@ function toggleDark(){
   if(btnDk) btnDk.textContent=dark?t("light_mode"):t("dark_mode");
 }
 
-function reinitialiser(){
+async function reinitialiser(){
   if(!confirm("⚠️ ATTENTION\n\nCela va effacer TOUS les membres, commandes et paiements de démonstration.\n\nVoulez-vous vraiment recommencer à zéro ?"))return;
   if(!confirm("Dernière confirmation — supprimer toutes les données ?"))return;
+  // Effacer le local
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem("netrova_comptes");
   localStorage.removeItem(PHOTOS_KEY);
+  // Effacer aussi le cloud pour éviter que la sync au rechargement ne restaure les données
+  if(window._firebase&&window._firebase.configured&&window._firebase.authReady){
+    try{
+      const {db:fdb,setDoc,doc}=window._firebase;
+      await setDoc(doc(fdb,"netrova","data"),{
+        membres:{},commandes:{},livraisons:{},cM:1,cC:0,
+        comptes_filleuls:{},updated_at:new Date().toISOString(),_reset:true
+      });
+    }catch(e){console.warn("Erreur effacement cloud:",e);}
+  }
   alert("✔ Application réinitialisée. La page va se recharger.");
   location.reload();
 }
@@ -2070,6 +2452,81 @@ function imprimerCarte(){
   setTimeout(()=>{pa.style.display="none";pa.innerHTML="";},1000);
 }
 
+// ─── DASHBOARD FILLEUL ───────────────────────────────────
+function renderDashboardFilleul(){
+  const mid=currentUser.membre_id;
+  const m=db.membres[mid];
+  if(!m)return;
+  const reseau=getReseau(mid);
+  const sousR=reseau.map(r=>r.m.id);
+  sousR.push(mid);
+  const cmds=Object.values(db.commandes).filter(c=>sousR.includes(c.membre_id));
+  const filleuls=getFilleuls(mid);
+  const totalCA=cmds.reduce((s,c)=>s+c.montant_total,0);
+  const totalPaye=cmds.reduce((s,c)=>s+c.montant_paye,0);
+  const totalReste=cmds.filter(c=>c.solde_restant>0).reduce((s,c)=>s+calcSolde(c).total,0);
+  const urgents=cmds.filter(c=>calcSolde(c).jours>7&&c.solde_restant>0);
+  const dateEl=document.getElementById("dash-date");
+  if(dateEl) dateEl.textContent=new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+  const dashEl=document.querySelector("#p-dashboard");
+  if(!dashEl)return;
+  // Remplacer le contenu du dashboard pour le filleul
+  dashEl.innerHTML=`
+    <div style="font-size:12px;color:#888;margin-bottom:12px" id="dash-date">${new Date().toLocaleDateString("fr-FR",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+    <!-- Carte bienvenue -->
+    <div style="background:linear-gradient(135deg,#185FA5,#0C3566);border-radius:16px;padding:20px;color:#fff;margin-bottom:12px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;border-radius:50%;background:rgba(29,185,84,0.15)"></div>
+      <div style="display:flex;align-items:center;gap:12px">
+        ${avatarHtml(m,"large")}
+        <div>
+          <div style="font-size:16px;font-weight:700">${m.nom}</div>
+          <div style="font-size:12px;opacity:0.8;margin-top:2px">Mon espace NETROVA</div>
+          <div style="margin-top:6px"><span style="background:rgba(29,185,84,0.3);color:#a0ffb0;font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600">Membre actif</span></div>
+        </div>
+      </div>
+    </div>
+    <!-- Métriques -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div class="metric"><div class="metric-label">Mon réseau</div><div class="metric-val mv-blue">${reseau.length}</div></div>
+      <div class="metric"><div class="metric-label">Filleuls directs</div><div class="metric-val mv-green">${filleuls.length}</div></div>
+      <div class="metric"><div class="metric-label">CA total</div><div class="metric-val" style="font-size:15px;color:#185FA5">${fmtN(totalCA)}</div></div>
+      <div class="metric"><div class="metric-label">Encaissé</div><div class="metric-val" style="font-size:15px;color:#0F6E56">${fmtN(totalPaye)}</div></div>
+    </div>
+    ${totalReste>0?`<div class="card" style="border-color:#FAC775;background:#fffdf5;margin-bottom:10px">
+      <div class="card-title" style="color:#854F0B">💰 Soldes en attente</div>
+      <div class="row-line"><span class="rl-label">Total restant à encaisser</span><span class="rl-val mv-amber">${fmtN(totalReste)}</span></div>
+    </div>`:""}
+    ${urgents.length?`<div class="card urgent margin-bottom:10px">
+      <div class="card-title">🚨 Retards critiques (+7 jours)</div>
+      ${urgents.map(c=>`<div class="row-line">
+        <div><div style="font-size:13px;font-weight:600">${c.membre_nom}</div>
+        <div style="font-size:11px;color:#888">${calcSolde(c).jours} jours de retard</div></div>
+        <div style="font-size:13px;font-weight:700;color:#A32D2D">${fmtN(calcSolde(c).total)}</div>
+      </div>`).join("")}
+    </div>`:""}
+    <!-- Mes filleuls directs -->
+    ${filleuls.length?`<div class="card">
+      <div class="card-title">👥 Mes filleuls directs</div>
+      ${filleuls.map(f=>{
+        const fc=Object.values(db.commandes).filter(c=>c.membre_id===f.id);
+        const fca=fc.reduce((s,c)=>s+c.montant_total,0);
+        return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">
+          ${avatarHtml(f)}
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600">${f.nom}</div>
+            <div style="font-size:11px;color:#888">${getReseau(f.id).length} réseau · ${fmtN(fca)} CA</div>
+          </div>
+          ${statutBadge(f.statut)}
+        </div>`;
+      }).join("")}
+    </div>`:"<div class='card'><div style='font-size:13px;color:#888'>Vous n\'avez pas encore de filleuls.</div></div>"}
+    <!-- Notifier par WhatsApp -->
+    ${urgents.length?`<button class="btn" style="background:#25D366;color:#fff;border-color:#25D366;margin-top:4px" onclick="notifierRetardsWhatsApp()">
+      📲 Notifier les retards sur WhatsApp
+    </button>`:""}
+  `;
+}
+
 // ─── GRAPHIQUES DASHBOARD ─────────────────────────────────
 function renderGraphiques(){
   // Donut statuts membres
@@ -2129,6 +2586,16 @@ function donutSVG(valeurs,couleurs,total){
 // ─── INIT ─────────────────────────────────────────────────
 document.getElementById("login-screen").style.display="flex";
 document.getElementById("main-app").style.display="none";
+
+// Synchronisation cloud dès l'ouverture (avant connexion), pour que les comptes
+// créés sur un autre appareil soient utilisables immédiatement pour se connecter.
+// Le script Firebase (type=module) se charge après ce script : on attend soit
+// l'événement "firebase-ready", soit on vérifie s'il est déjà prêt.
+function lancerSyncInitiale(){
+  if(window._firebase&&window._firebase.configured) syncFirebase();
+}
+if(window._firebase){ lancerSyncInitiale(); }
+else { window.addEventListener("firebase-ready", lancerSyncInitiale, {once:true}); }
 
 // ─── PWA — Enregistrement service worker ────────────────
 if('serviceWorker' in navigator){
