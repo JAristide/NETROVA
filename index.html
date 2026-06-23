@@ -1083,12 +1083,16 @@ async function syncFirebase(){
     window._ssUnsub=onSnapshot(docRef,(snap)=>{
       if(snap.exists()){
         const data=snap.data();
+        // Ne pas écraser si le cloud est en état de réinitialisation
+        if(data._reset){afficherStatutSync("synced");return;}
         db.membres  = data.membres   || db.membres;
         db.commandes= data.commandes || db.commandes;
         db.livraisons=data.livraisons|| db.livraisons||{};
         db.cM = data.cM || db.cM;
         db.cC = data.cC || db.cC;
         if(data.comptes_filleuls){FILLEUL_COMPTES=data.comptes_filleuls;localStorage.setItem("netrova_comptes",JSON.stringify(FILLEUL_COMPTES));}
+        // Garantir que le Fondateur est toujours présent
+        if(!db.membres["MBR-001"]) db.membres["MBR-001"]=fondateurDefaut();
         localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
         // Rafraîchir l'affichage
         const p=document.querySelector(".page.active");
@@ -1109,8 +1113,10 @@ async function syncFirebase(){
 }
 
 async function sauvegarderCloud(){
-  if(!window._firebase||!window._firebase.configured)return;
+  if(!window._firebase||!window._firebase.configured||!window._firebase.authReady)return;
   const {db:fdb,setDoc,doc}=window._firebase;
+  // Garantir le fondateur avant tout push
+  if(!db.membres["MBR-001"]) db.membres["MBR-001"]=fondateurDefaut();
   await setDoc(doc(fdb,"netrova","data"),{
     membres: db.membres,
     commandes: db.commandes,
@@ -1118,6 +1124,7 @@ async function sauvegarderCloud(){
     cM: db.cM, cC: db.cC,
     comptes_filleuls: FILLEUL_COMPTES,
     updated_at: new Date().toISOString()
+    // Pas de _reset ici — ce flag n'est posé que par reinitialiser()
   });
 }
 
@@ -1493,7 +1500,13 @@ function addMembre(){
   db.membres[id]={id,nom,telephone:tel,zone,parrain_id,date_adhesion:nowIso(),statut,role:"membre"};
   const photoPreview=document.getElementById("m-photo-preview");
   if(photoPreview.src&&photoPreview.style.display!=="none") savePhoto(id,photoPreview.src);
-  sauvegarder();closeModal("modal-add-membre");
+  sauvegarder();
+  // Si c'était le premier membre (après réinitialisation), forcer une sync cloud immédiate
+  // pour effacer le flag _reset et rendre les données visibles sur tous les appareils
+  if(Object.keys(db.membres).length<=2){
+    setTimeout(()=>sauvegarderCloud(),600);
+  }
+  closeModal("modal-add-membre");
   ["m-nom","m-tel","m-zone"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("m-photo-preview").style.display="none";
   document.getElementById("m-photo-placeholder").style.display="flex";
