@@ -3740,15 +3740,32 @@ if(!navigator.onLine){
 
 // ─── PWA — Enregistrement service worker ────────────────
 if('serviceWorker' in navigator){
-  // Service worker inline pour le cache
+  // Service worker inline pour le cache.
+  // Stratégie "réseau d'abord" : on essaie toujours de récupérer la dernière
+  // version en ligne ; on ne retombe sur le cache que si la requête échoue
+  // (vrai mode hors-ligne). Le nom de cache change à chaque mise à jour de ce
+  // bloc pour forcer le nettoyage des anciens caches et éviter de rester
+  // bloqué sur une version périmée comme avant.
   const swCode = `
-    const CACHE='netrova-v1';
-    self.addEventListener('install',e=>e.waitUntil(
-      caches.open(CACHE).then(c=>c.addAll(['.','./index.html']))
-    ));
-    self.addEventListener('fetch',e=>e.respondWith(
-      caches.match(e.request).then(r=>r||fetch(e.request))
-    ));
+    const CACHE='netrova-v2';
+    self.addEventListener('install',e=>{
+      self.skipWaiting();
+      e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['.','./index.html'])));
+    });
+    self.addEventListener('activate',e=>{
+      e.waitUntil(
+        caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+      );
+      self.clients.claim();
+    });
+    self.addEventListener('fetch',e=>{
+      e.respondWith(
+        fetch(e.request).then(r=>{
+          caches.open(CACHE).then(c=>c.put(e.request,r.clone()));
+          return r;
+        }).catch(()=>caches.match(e.request))
+      );
+    });
   `;
   const blob = new Blob([swCode],{type:'application/javascript'});
   const swUrl = URL.createObjectURL(blob);
