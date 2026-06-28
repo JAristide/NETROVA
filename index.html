@@ -1476,6 +1476,16 @@ function doLogin(){
 }
 
 function ouvrirApp(){
+  // S'assurer que MBR-001 (fondateur) existe toujours
+  if(!db.membres["MBR-001"]){
+    db.membres["MBR-001"]={
+      id:"MBR-001",nom:"FONDATEUR NETROVA",
+      telephone:"+228 90 49 12 87",zone:"Baguida – Lomé",
+      parrain_id:null,date_adhesion:new Date().toISOString(),
+      statut:"actif",role:"fondateur"
+    };
+    sauvegarder();
+  }
   // Sauvegarder la session pour résister au refresh
   sessionStorage.setItem("netrova_session",JSON.stringify(currentUser));
   document.getElementById("login-screen").style.display="none";
@@ -3642,6 +3652,13 @@ function donutSVG(valeurs,couleurs,total){
   if(sess){
     try{
       currentUser=JSON.parse(sess);
+      // Vérifier que le membre existe encore
+      if(!db.membres[currentUser.membre_id]){
+        sessionStorage.removeItem("netrova_session");
+        document.getElementById("login-screen").style.display="flex";
+        document.getElementById("main-app").style.display="none";
+        return;
+      }
       document.getElementById("login-screen").style.display="none";
       document.getElementById("main-app").style.display="flex";
       // Attendre que la DB soit chargée puis ouvrir
