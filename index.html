@@ -1462,6 +1462,16 @@ function importerDonnees(input){
 let FILLEUL_COMPTES=JSON.parse(localStorage.getItem("netrova_comptes")||"{}");
 let currentUser=null;
 
+// ─── JOURNAL D'ACTIONS ───────────────────────────────────────
+function logAction(action, detail){
+  try{
+    const logs=JSON.parse(localStorage.getItem("netrova_logs")||"[]");
+    logs.unshift({date:new Date().toISOString(),action,detail});
+    if(logs.length>200)logs.length=200;
+    localStorage.setItem("netrova_logs",JSON.stringify(logs));
+  }catch(e){}
+}
+
 function doLogin(){
   const id=document.getElementById("login-id").value.trim().toLowerCase();
   const pwd=document.getElementById("login-pwd").value;
